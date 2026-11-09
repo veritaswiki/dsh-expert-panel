@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <linearGradient id="epBg" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="55%" stop-color="#1E1B4B"/>
+      <stop offset="100%" stop-color="#312E81"/>
+    </linearGradient>
+    <linearGradient id="epCrown" x1="20" y1="10" x2="44" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="epTeam" x1="12" y1="34" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="50%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#C084FC"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#epBg)" stroke="#6366F1" stroke-width="2"/>
+  <!-- final arbiter crown -->
+  <path d="M22 26L26 16L32 23L38 16L42 26Z" fill="url(#epCrown)" stroke="#FEF08A" stroke-width="1" stroke-linejoin="round"/>
+  <!-- panel of three experts -->
+  <circle cx="20" cy="40" r="5.5" fill="#0F172A" stroke="url(#epTeam)" stroke-width="2"/>
+  <circle cx="32" cy="44" r="6.5" fill="#0F172A" stroke="url(#epTeam)" stroke-width="2"/>
+  <circle cx="44" cy="40" r="5.5" fill="#0F172A" stroke="url(#epTeam)" stroke-width="2"/>
+  <path d="M25 41.5L27 42.5M37 42.5L39 41.5" stroke="url(#epTeam)" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

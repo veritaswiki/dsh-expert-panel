@@ -1,0 +1,71 @@
+{
+  "name": "dsh-expert-panel",
+  "version": "5.0.0",
+  "description": "多轮评审专家团：主力模型卡住时，用一次带硬性收口契约的跨模型对抗式评审（① 独立取证 → ② 交叉互审 → ③ 终裁定稿），产出可直接执行的《裁决与后续工作部署指派单》。",
+  "type": "module",
+  "license": "MIT",
+  "author": "veritaswiki",
+  "homepage": "https://github.com/veritaswiki/dsh-expert-panel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/veritaswiki/dsh-expert-panel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/veritaswiki/dsh-expert-panel/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "expert-panel",
+    "multi-model",
+    "review-pipeline",
+    "adversarial-review",
+    "agent"
+  ],
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "http-api.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "engines": {
+    "dsh": ">=0.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/schemastery": "^3.19.0"
+  },
+  "scripts": {
+    "test": "node --check index.js && node --check http-api.js && node --check client.js && node --test test/*.test.mjs",
+    "audit:paths": "! grep -rnE \"/Users/|/home/\" --include=\"*.js\" --include=\"*.md\" --include=\"*.json\" --include=\"*.yml\" . --exclude-dir=node_modules --exclude-dir=.git"
+  }
+}

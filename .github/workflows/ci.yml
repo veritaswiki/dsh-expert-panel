@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Syntax check
+        run: |
+          node --check index.js
+          node --check http-api.js
+          node --check client.js
+
+      - name: Unit tests
+        run: node --test test/*.test.mjs
+
+      - name: Desensitize audit (must be 0 hits)
+        run: |
+          if grep -rnE "/Users/|/home/[a-z]" --include="*.js" --include="*.md" --include="*.json" --include="*.yml" . \
+               --exclude-dir=node_modules --exclude-dir=.git; then
+            echo "::error::Found local absolute paths in the repository."
+            exit 1
+          fi
+          echo "No local absolute paths found."
+
+      - name: Verify package contents
+        run: npm pack --dry-run
