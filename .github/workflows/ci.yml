@@ -34,7 +34,8 @@ jobs:
       - name: Desensitize audit (must be 0 hits)
         run: |
           if grep -rnE "/Users/|/home/[a-z]" --include="*.js" --include="*.md" --include="*.json" --include="*.yml" . \
-               --exclude-dir=node_modules --exclude-dir=.git; then
+               --exclude-dir=node_modules --exclude-dir=.git \
+               --exclude-dir=.github --exclude=package.json; then
             echo "::error::Found local absolute paths in the repository."
             exit 1
           fi

@@ -66,6 +66,6 @@
   },
   "scripts": {
     "test": "node --check index.js && node --check http-api.js && node --check client.js && node --test test/*.test.mjs",
-    "audit:paths": "! grep -rnE \"/Users/|/home/\" --include=\"*.js\" --include=\"*.md\" --include=\"*.json\" --include=\"*.yml\" . --exclude-dir=node_modules --exclude-dir=.git"
+    "audit:paths": "! grep -rnE \"/Users/|/home/[a-z]\" --include=\"*.js\" --include=\"*.md\" --include=\"*.json\" --include=\"*.yml\" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.github --exclude=package.json"
   }
 }
