@@ -10,25 +10,25 @@
         finalExpert:
           label: Gemini 4 Argon（终裁）
           provider: magpie
-          model: seoul/auto/gemini-4-argon
+          model: ctyun/auto/gemini-4-argon
           reasoningEffort: high
         # ① 独立取证专家（并行只读）
         panelists:
           - label: Gemini 4 Argon（终裁）
             provider: magpie
-            model: seoul/auto/gemini-4-argon
+            model: ctyun/auto/gemini-4-argon
             reasoningEffort: high
         # ② 交叉互审官
         reviewer:
           label: Gemini 4 Argon（终裁）
           provider: magpie
-          model: seoul/auto/gemini-4-argon
+          model: ctyun/auto/gemini-4-argon
           reasoningEffort: high
         # 日常主力施工模型（专家下发指派单后负责落地）
         workerModel:
           label: DeepSeek V4.1 Flash
           provider: magpie
-          model: seoul/auto/deepseek-v4.1-flash
+          model: ctyun/auto/deepseek-v4.1-flash
         enableArbiter: true
         requireApproval: true
         maxStepsPerExpert: 60
