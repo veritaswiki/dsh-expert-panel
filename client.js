@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/expert-panel',
+  id: 'dsh-expert-panel',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
