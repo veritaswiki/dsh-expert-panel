@@ -8,22 +8,22 @@ window.__ModuleLoader__.load({
     const STORAGE_SLOT = 'expert-panel-ui-state-v3';
 
     const DEFAULT_MODELS = [
-      { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'seoul/auto/gemini-4-argon', reasoningEffort: 'high', supportsEffort: true },
-      { label: 'Qwen3.8-Max', provider: 'magpie', model: 'seoul/auto/qmodel_38max' },
-      { label: 'Kimi-K3.1-Pro', provider: 'magpie', model: 'seoul/auto/kmodel_latest' },
-      { label: 'GLM-5.3', provider: 'magpie', model: 'seoul/auto/gmodel' },
-      { label: 'Gemini 3.8 Flash', provider: 'magpie', model: 'seoul/antigravity/gemini-3.8-flash', reasoningEffort: 'high', supportsEffort: true },
-      { label: 'DeepSeek V4.1 Flash (日常主力)', provider: 'magpie', model: 'seoul/auto/deepseek-v4.1-flash' },
+      { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high', supportsEffort: true },
+      { label: 'Qwen3.8-Max', provider: 'magpie', model: 'ctyun/qoder-cn/qmodel_38max' },
+      { label: 'Kimi-K3.1-Pro', provider: 'magpie', model: 'ctyun/qoder-cn/kmodel_latest' },
+      { label: 'GLM-5.3', provider: 'magpie', model: 'ctyun/qoder-cn/gmodel' },
+      { label: 'Gemini 3.8 Flash', provider: 'magpie', model: 'ctyun/antigravity/gemini-3.8-flash', reasoningEffort: 'high', supportsEffort: true },
+      { label: 'DeepSeek V4.1 Flash (日常主力)', provider: 'magpie', model: 'ctyun/auto/deepseek-v4.1-flash' },
     ];
 
     const DEFAULT_CONFIG = {
       enableArbiter: true,
-      finalExpert: { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'seoul/auto/gemini-4-argon', reasoningEffort: 'high' },
-      workerModel: { label: 'DeepSeek V4.1 Flash', provider: 'magpie', model: 'seoul/auto/deepseek-v4.1-flash' },
+      finalExpert: { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high' },
+      workerModel: { label: 'DeepSeek V4.1 Flash', provider: 'magpie', model: 'ctyun/auto/deepseek-v4.1-flash' },
       panelists: [
-        { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'seoul/auto/gemini-4-argon', reasoningEffort: 'high' },
+        { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high' },
       ],
-      reviewer: { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'seoul/auto/gemini-4-argon', reasoningEffort: 'high' },
+      reviewer: { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high' },
       requireApproval: true,
       maxStepsPerExpert: 30,
       expertTimeoutSeconds: 1800,
@@ -984,7 +984,7 @@ window.__ModuleLoader__.load({
               h('input', {
                 type: 'text',
                 className: 'ep-input',
-                placeholder: '添加自定义路由（例如 magpie/seoul/auto/qmodel_38max）',
+                placeholder: '添加自定义路由（例如 magpie/ctyun/qoder-cn/qmodel_38max）',
                 value: customRoute,
                 onChange: (e) => setCustomRoute(e.target.value),
               }),

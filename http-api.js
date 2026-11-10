@@ -97,7 +97,7 @@ export function savePersistedSettings(config, patch) {
           workerModel: config.workerModel ?? {
             label: "DeepSeek 4.1 Flash",
             provider: "magpie",
-            model: "seoul/auto/deepseek-v4.1-flash",
+            model: "ctyun/auto/deepseek-v4.1-flash",
           },
           panelists: config.panelists,
           reviewer: config.reviewer,
@@ -172,12 +172,12 @@ async function collectAvailableModels(ctx, config) {
 
   if (config.reviewer) add(config.reviewer);
   for (const p of config.panelists ?? []) add(p);
-  add({ label: "DeepSeek 4.1 Flash (日常主力)", provider: "magpie", model: "seoul/auto/deepseek-v4.1-flash" });
-  add({ label: "Gemini 4 Argon（终裁）", provider: "magpie", model: "seoul/antigravity/gemini-4-argon", reasoningEffort: "high", supportsEffort: true });
-  add({ label: "Qwen3.8-Max", provider: "magpie", model: "seoul/qoder/qmodel_38max" });
-  add({ label: "Kimi-K3.1-Pro", provider: "magpie", model: "seoul/qoder/kmodel_latest" });
-  add({ label: "GLM-5.3", provider: "magpie", model: "seoul/qoder/gmodel" });
-  add({ label: "Gemini 3.8 Flash", provider: "magpie", model: "seoul/antigravity/gemini-3.8-flash", supportsEffort: true });
+  add({ label: "DeepSeek 4.1 Flash (日常主力)", provider: "magpie", model: "ctyun/auto/deepseek-v4.1-flash" });
+  add({ label: "Gemini 4 Argon（终裁）", provider: "magpie", model: "ctyun/antigravity/gemini-4-argon", reasoningEffort: "high", supportsEffort: true });
+  add({ label: "Qwen3.8-Max", provider: "magpie", model: "ctyun/qoder-cn/qmodel_38max" });
+  add({ label: "Kimi-K3.1-Pro", provider: "magpie", model: "ctyun/qoder-cn/kmodel_latest" });
+  add({ label: "GLM-5.3", provider: "magpie", model: "ctyun/qoder-cn/gmodel" });
+  add({ label: "Gemini 3.8 Flash", provider: "magpie", model: "ctyun/antigravity/gemini-3.8-flash", supportsEffort: true });
 
   const llm = ctx.get("llm");
   if (llm) {
@@ -343,7 +343,7 @@ async function buildStateSnapshot(ctx, { config, expertChildren }) {
       workerModel: config.workerModel ?? {
         label: "DeepSeek 4.1 Flash",
         provider: "magpie",
-        model: "seoul/auto/deepseek-v4.1-flash",
+        model: "ctyun/auto/deepseek-v4.1-flash",
       },
       panelists: config.panelists,
       reviewer: config.reviewer,

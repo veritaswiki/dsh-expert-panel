@@ -19,7 +19,7 @@ const expertEntry = () =>
   z.object({
     label: z.string().description("显示名称（面板与审批卡片里用这个名字）"),
     provider: z.string().required().description("provider id，例如 magpie"),
-    model: z.string().required().description("模型 id，例如 seoul/qoder/qmodel_38max"),
+    model: z.string().required().description("模型 id，例如 ctyun/qoder-cn/qmodel_38max"),
     reasoningEffort: z.string().description("推理档位；留空则用该路由默认档（该路由不支持时会拒绝显式档位）"),
   });
 
@@ -42,7 +42,7 @@ export const Config = z.object({
     .default({
       label: "Gemini 4 Argon（终裁）",
       provider: "magpie",
-      model: "seoul/auto/gemini-4-argon",
+      model: "ctyun/auto/gemini-4-argon",
       reasoningEffort: "high",
     })
     .description("终裁专家：最贵，只在专家团收敛不了时出场"),
@@ -120,7 +120,7 @@ function normalizeConfig(raw = {}) {
   const finalExpert = normalizeExpert(cfg.finalExpert, "终裁专家") ?? {
     label: "Gemini 4 Argon（终裁）",
     provider: "magpie",
-    model: "seoul/antigravity/gemini-4-argon",
+    model: "ctyun/antigravity/gemini-4-argon",
     reasoningEffort: "high",
   };
 
@@ -137,7 +137,7 @@ function normalizeConfig(raw = {}) {
     workerModel: normalizeExpert(cfg.workerModel, "日常主力") ?? {
       label: "DeepSeek V4.1 Flash",
       provider: "magpie",
-      model: "seoul/auto/deepseek-v4.1-flash",
+      model: "ctyun/auto/deepseek-v4.1-flash",
     },
     panelists: panelists.length > 0 ? panelists : [finalExpert],
     reviewer,
@@ -1290,22 +1290,22 @@ export function apply(ctx, rawConfig = {}) {
       text = text ? `${banner}\n\n${text}` : `${banner}\n\n（本轮未产出正文，已保留 ${telemetry.steps} 步 / ${telemetry.totalTools} 次工具调用的排查痕迹，可在「专家团」页签查看完整轨迹。）`;
     }
 
-    // Automatic route failover if a seoul/antigravity/* route failed on step 1 with 0 output (e.g. 403 / stream timeout)
+    // Automatic route failover if a ctyun/antigravity/* route failed on step 1 with 0 output (e.g. 403 / stream timeout)
     if (
       settled.stopReason === "error" &&
       !text &&
       telemetry.steps <= 2 &&
-      String(expert.model).startsWith("seoul/") &&
+      String(expert.model).startsWith("ctyun/") &&
       config.panelists.length > 0
     ) {
       const model = String(expert.model);
-      // 同一个 Gemini 4 Argon 在 seoul 渠道下有两条独立上游路由：auto（路由组）与 antigravity（直连）。
+      // 同一个 Gemini 4 Argon 在 ctyun 渠道下有两条独立上游路由：auto（路由组）与 antigravity（直连）。
       // 任一上游 403 / 流超时时，自动切到另一条，避免整套会诊直接失败。
       const routeFallback =
-        model === "seoul/auto/gemini-4-argon"
-          ? { label: `${expert.label} (Antigravity 灾备路由)`, provider: expert.provider, model: "seoul/antigravity/gemini-4-argon" }
-          : model === "seoul/antigravity/gemini-4-argon"
-            ? { label: `${expert.label} (Auto 灾备路由)`, provider: expert.provider, model: "seoul/auto/gemini-4-argon" }
+        model === "ctyun/auto/gemini-4-argon"
+          ? { label: `${expert.label} (Antigravity 灾备路由)`, provider: expert.provider, model: "ctyun/antigravity/gemini-4-argon" }
+          : model === "ctyun/antigravity/gemini-4-argon"
+            ? { label: `${expert.label} (Auto 灾备路由)`, provider: expert.provider, model: "ctyun/auto/gemini-4-argon" }
             : undefined;
       const fallback = routeFallback ?? config.panelists.find((p) => routeOf(p) !== routeOf(expert)) ?? config.panelists[0];
       if (routeOf(fallback) !== routeOf(expert)) {
