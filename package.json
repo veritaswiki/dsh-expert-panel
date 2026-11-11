@@ -46,7 +46,9 @@
     "README.md",
     "README.en.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "screenshots.json",
+    "assets/screenshots/*.png"
   ],
   "publishConfig": {
     "access": "public",
