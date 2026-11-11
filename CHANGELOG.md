@@ -3,6 +3,20 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- 不再内置任何默认阵容：`Config` 的 `finalExpert` / `workerModel` / `reviewer` 默认值与
+  `client.js` 的种子模型清单全部清空，`cordis.patch.yml` 只保留纯行为开关。
+  插件不再假设任何 provider / model，装好后由用户在设置页选。
+- 未配置阵容时明确引导而不是用假默认：`/expert` 返回「去设置页配置阵容」文案、
+  `consult_expert_panel` 抛同一句提示、system prompt 顶部注入同一警告，且不启动任何专家子会话。
+- 灾备路由不再按具体 provider / model 字面量判断，改为「同 provider 的另一条路由 → 任意另一位取证专家」的路由比较。
+- `maxStepsPerExpert` 在仓库 `cordis.patch.yml` 与 schema 之间统一为 `30`（此前 patch 写 `60`）。
+
+### Added
+- `test/pipeline.test.mjs` 增加 5 个用例：空阵容下的工具 / 命令 / prompt 行为，以及「只配一位专家时该位兼终裁」。
+
 ## [5.0.0] - 2026-11-09
 
 First public release. First-principles rewrite of the plugin.

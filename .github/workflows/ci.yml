@@ -31,15 +31,8 @@ jobs:
       - name: Unit tests
         run: node --test test/*.test.mjs
 
-      - name: Desensitize audit (must be 0 hits)
-        run: |
-          if grep -rnE "/Users/|/home/[a-z]" --include="*.js" --include="*.md" --include="*.json" --include="*.yml" . \
-               --exclude-dir=node_modules --exclude-dir=.git \
-               --exclude-dir=.github --exclude=package.json; then
-            echo "::error::Found local absolute paths in the repository."
-            exit 1
-          fi
-          echo "No local absolute paths found."
+      - name: Sanitization gate (must be 0 hits)
+        run: node scripts/sanitize-check.mjs
 
       - name: Verify package contents
         run: npm pack --dry-run

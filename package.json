@@ -4,8 +4,11 @@
   "description": "多轮评审专家团：主力模型卡住时，用一次带硬性收口契约的跨模型对抗式评审（① 独立取证 → ② 交叉互审 → ③ 终裁定稿），产出可直接执行的《裁决与后续工作部署指派单》。",
   "type": "module",
   "license": "MIT",
-  "author": "veritaswiki",
-  "homepage": "https://github.com/veritaswiki/dsh-expert-panel",
+  "author": {
+    "name": "veritaswiki",
+    "url": "https://github.com/veritaswiki"
+  },
+  "homepage": "https://github.com/veritaswiki/dsh-expert-panel#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/veritaswiki/dsh-expert-panel.git"
@@ -39,9 +42,16 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "assets/icon-180.png",
     "README.md",
+    "README.en.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -59,13 +69,14 @@
     }
   },
   "engines": {
+    "node": ">=20",
     "dsh": ">=0.2.0"
   },
-  "devDependencies": {
-    "@deepseek-ai/schemastery": "^3.19.0"
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": ">=3.19.0-0"
   },
   "scripts": {
     "test": "node --check index.js && node --check http-api.js && node --check client.js && node --test test/*.test.mjs",
-    "audit:paths": "! grep -rnE \"/Users/|/home/[a-z]\" --include=\"*.js\" --include=\"*.md\" --include=\"*.json\" --include=\"*.yml\" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.github --exclude=package.json"
+    "audit:paths": "! grep -rnE \"[/]Users[/]|[/]home[/][a-z]\" --include=\"*.js\" --include=\"*.md\" --include=\"*.json\" --include=\"*.yml\" . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.github --exclude=package.json"
   }
 }

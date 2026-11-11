@@ -65,7 +65,7 @@ export function applySettingsPatch(config, patch) {
   }
   if (Array.isArray(patch.panelists)) {
     const cleaned = patch.panelists
-      .map((item, idx) => sanitizeExpert(item, { label: `专家 ${idx + 1}`, provider: "magpie", model: "" }))
+      .map((item, idx) => sanitizeExpert(item, { label: `专家 ${idx + 1}`, provider: "", model: "" }))
       .filter((item) => item && item.provider && item.model);
     if (cleaned.length > 0) config.panelists = cleaned;
   }
@@ -94,11 +94,7 @@ export function savePersistedSettings(config, patch) {
           enableArbiter: config.enableArbiter !== false,
           finalExpert: config.finalExpert,
 
-          workerModel: config.workerModel ?? {
-            label: "DeepSeek 4.1 Flash",
-            provider: "magpie",
-            model: "ctyun/auto/deepseek-v4.1-flash",
-          },
+          workerModel: config.workerModel ?? null,
           panelists: config.panelists,
           reviewer: config.reviewer,
 
@@ -167,17 +163,13 @@ async function collectAvailableModels(ctx, config) {
     if (!seen.has(key)) seen.set(key, item);
   };
 
-  // Seed with configured models + common working routes
-  add({ ...config.finalExpert, supportsEffort: true });
+  // 只放真实存在的东西：已配置的路由 + 宿主 provider 目录。不预置任何「常见路由」，
+  // 宿主没注册 provider 时这个列表就是空的，设置页会提示用户手填 provider/model。
+  if (config.finalExpert) add({ ...config.finalExpert, supportsEffort: true });
 
   if (config.reviewer) add(config.reviewer);
+  if (config.workerModel) add(config.workerModel);
   for (const p of config.panelists ?? []) add(p);
-  add({ label: "DeepSeek 4.1 Flash (日常主力)", provider: "magpie", model: "ctyun/auto/deepseek-v4.1-flash" });
-  add({ label: "Gemini 4 Argon（终裁）", provider: "magpie", model: "ctyun/antigravity/gemini-4-argon", reasoningEffort: "high", supportsEffort: true });
-  add({ label: "Qwen3.8-Max", provider: "magpie", model: "ctyun/qoder-cn/qmodel_38max" });
-  add({ label: "Kimi-K3.1-Pro", provider: "magpie", model: "ctyun/qoder-cn/kmodel_latest" });
-  add({ label: "GLM-5.3", provider: "magpie", model: "ctyun/qoder-cn/gmodel" });
-  add({ label: "Gemini 3.8 Flash", provider: "magpie", model: "ctyun/antigravity/gemini-3.8-flash", supportsEffort: true });
 
   const llm = ctx.get("llm");
   if (llm) {
@@ -340,11 +332,7 @@ async function buildStateSnapshot(ctx, { config, expertChildren }) {
       enableArbiter: config.enableArbiter !== false,
       finalExpert: config.finalExpert,
 
-      workerModel: config.workerModel ?? {
-        label: "DeepSeek 4.1 Flash",
-        provider: "magpie",
-        model: "ctyun/auto/deepseek-v4.1-flash",
-      },
+      workerModel: config.workerModel ?? null,
       panelists: config.panelists,
       reviewer: config.reviewer,
 
@@ -481,7 +469,7 @@ export function registerExpertPanelHttp(ctx, { config, expertChildren, manualCon
         kind: "prefix",
         path: "/expert-panel",
         handler: async (req, res) => {
-          const url = new URL(req.url ?? "/", "http://127.0.0.1");
+          const url = new URL(req.url ?? "/", "http://placeholder.invalid");
           if (!url.pathname.startsWith("/expert-panel/api/")) {
             res.writeHead(404);
             res.end();

@@ -160,3 +160,57 @@ test("empty problem_summary is rejected", async () => {
     /problem_summary/,
   );
 });
+
+test("Config ships no default roster and no provider strings", () => {
+  const parsed = Config({});
+  assert.deepEqual(parsed.panelists, [], "panelists default is empty");
+  assert.ok(!parsed.finalExpert || !parsed.finalExpert.provider, "finalExpert has no preset provider");
+  assert.equal(parsed.maxStepsPerExpert, 30);
+  assert.equal(parsed.expertTimeoutSeconds, 1800);
+  assert.equal(parsed.enableArbiter, true);
+  assert.equal(parsed.requireApproval, true);
+});
+
+test("unconfigured roster: tool refuses with a setup hint and spawns nothing", async () => {
+  const { ctx, state, created, rootAgent } = makeContext();
+  applyPlugin(ctx, Config({}));
+  await assert.rejects(
+    state.tool.execute(
+      { category: "architecture", problem_summary: "deep coupling", attempted_steps: "tried twice" },
+      { agent: rootAgent, signal: new AbortController().signal },
+    ),
+    (error) => /设置 → 专家团 → 设置/.test(String(error?.message ?? "")),
+  );
+  assert.equal(created.length, 0, "no expert was spawned");
+});
+
+test("unconfigured roster: /expert returns an error card instead of crashing", async () => {
+  const { ctx, state, created, rootAgent } = makeContext();
+  applyPlugin(ctx, Config({}));
+  const out = await state.commands[0].handler({
+    agent: rootAgent,
+    rawInput: "帮我看看这个卡点",
+    attachments: [],
+  });
+  assert.equal(out.kind, "error");
+  assert.match(out.text, /还没有配置阵容/);
+  assert.equal(created.length, 0, "no expert was spawned");
+});
+
+test("unconfigured roster: prompt section carries the warning", () => {
+  const { ctx, state } = makeContext();
+  applyPlugin(ctx, Config({}));
+  const section = state.sections[0];
+  const text = String(typeof section.text === "function" ? section.text({}) : section.text);
+  assert.match(text, /阵容未配置/);
+});
+
+test("only panelists configured: the first panelist doubles as arbiter", async () => {
+  const { ctx, state, created, rootAgent } = makeContext();
+  applyPlugin(ctx, Config({ panelists: [{ label: "Only", provider: "fake", model: "fake/only" }], requireApproval: false }));
+  await state.tool.execute(
+    { category: "stuck_bug", problem_summary: "p", attempted_steps: "a" },
+    { agent: rootAgent, signal: new AbortController().signal },
+  );
+  assert.equal(created.length, 3, "evidence + review + arbiter all ran");
+});

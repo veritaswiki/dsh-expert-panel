@@ -1,4 +1,10 @@
-# `@local/expert-panel` v5.0 · 多轮评审专家团
+# dsh-expert-panel v5.0 · 多轮评审专家团
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](https://nodejs.org/en/download)
+<!-- npm 徽章：等首次发包后再开，位置留在这里。
+[![npm version](https://img.shields.io/npm/v/dsh-expert-panel.svg)](https://www.npmjs.com/package/dsh-expert-panel)
+-->
 
 ## 一、一句话公理
 
@@ -27,16 +33,20 @@
 
 ## 四、8 个配置项
 
-| 字段 | 说明 |
-|---|---|
-| `finalExpert` | ③ 终裁专家 |
-| `panelists` | ① 独立取证专家（并行数 = 本数组长度，单一事实源） |
-| `reviewer` | ② 互审官；留空取第一位取证专家 |
-| `enableArbiter` | 是否启用 ③ 终裁 |
-| `workerModel` | 日常主力施工模型（仅展示与交接用） |
-| `requireApproval` | 模型主动申请时是否弹确认卡（用户自己 `/expert` 不弹，属正确分层） |
-| `maxStepsPerExpert` | 单次专家最大步数（默认 30） |
-| `expertTimeoutSeconds` | 单次有效工作时长上限（默认 1800s，不含工具等待） |
+`index.js` 的 `Config`（Schemastery）里只有这 8 个键，全部在 `设置 → 专家团 → 设置` 里可改。
+
+**仓库不预置任何 `provider` / `model`**：装好后第一件事是去设置页选阵容（不知道有哪些路由就先执行 `/expert routes`）。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `finalExpert` | `{ label, provider, model, reasoningEffort? }` | 空（未配置） | ③ 终裁专家；留空时自动由第一位取证专家承担 |
+| `panelists` | 同上对象的数组 | `[]` | ① 独立取证专家；并行数 = 本数组长度（单一事实源，不另设配置项） |
+| `reviewer` | 同上对象的可选对象 | 空 | ② 互审官；留空取第一位取证专家 |
+| `enableArbiter` | boolean | `true` | 是否启用 ③ 终裁；关掉只跑前两轮 |
+| `workerModel` | 同上对象的可选对象 | 空（未配置） | 日常主力施工模型，仅用于展示与交接口径；不影响流水线 |
+| `requireApproval` | boolean | `true` | 模型主动申请时是否弹确认卡；用户自己 `/expert` 不弹 |
+| `maxStepsPerExpert` | number（最小 4，步长 1） | `30` | 单次专家最大步数预算，到限强制收尾交回主模型 |
+| `expertTimeoutSeconds` | number（最小 60，步长 1） | `1800` | 单次有效工作时长上限（秒，不含工具执行等待） |
 
 ## 五、HTTP 面（4 个动作）
 
@@ -71,18 +81,22 @@
 
 ## 八、安装与生效
 
-### 从 npm 安装（推荐）
+> 本版尚未发布到 npm registry（`npm view dsh-expert-panel` 目前是 404），因此下面的装法都不走 npm 包名。
 
-```bash
-dsh plugin add dsh-expert-panel
-```
+### 方式 A：让 Agent 用 `plugin_manager` 安装（推荐）
 
-### 从源码安装
+在 DSH 里对 Agent 说「装 `dsh-expert-panel`」，它会调 `plugin_manager`：
+
+- `action: "install_bundle"`，`target` 填安装 spec：`github:veritaswiki/dsh-expert-panel`，或本地 `file:/abs/path/to/dsh-expert-panel`；
+- 装完 `action: "set_bundle"` 启用。
+
+### 方式 B：从源码挂到 profile
 
 ```bash
 git clone https://github.com/veritaswiki/dsh-expert-panel.git
 cd dsh-expert-panel
-dsh plugin add .
+# dsh plugin 把参数原样转给 profile 目录里的 pnpm；--profile 指定目标 profile（web / desktop / 自定义）
+dsh plugin --profile web add .
 ```
 
 ### 手动组合
@@ -98,11 +112,23 @@ dsh plugin add .
 - `client.js` 改动：刷新页面即可；
 - Host 侧改动：由 loader 热重载生效，必要时重启桌面端。
 
+### 装完先配阵容
+
+`/expert routes` 列出本机真实可用的 `provider/model`，然后在「设置 → 专家团 → 设置」里至少选一位取证专家。没配之前 `/expert` 只会回一句「还没有配置阵容」，不会调用任何模型。
+
 ## 九、开发
 
 ```bash
 npm test        # 语法检查 + 流水线单测
 ```
+
+## 已知限制
+
+- **需要外部模型可用。** 三个阶段全部跑在你配置的 `provider` / `model` 路由上，插件不做本地推理。但失败不是硬停：某位专家在第 1 步就以 0 输出失败（鉴权、上游 403、流超时）时，会自动换到另一位取证专家的路由重试一次（`index.js` 的 route failover），换完仍失败该阶段才判失败——所以「最后拿到了结论」并不等于你选的那条路由是好的。
+- **每次召唤有真实成本。** 一次多轮评审 = N 位取证专家 + 1 位互审官（`enableArbiter` 打开时再加 1 位终裁），每位都按 `maxStepsPerExpert` 跑满预算，按所选模型实际计费；它不是一次轻量的单模型问答。
+- **跨模型延迟明显。** 流程是「并行取证 → 串行互审 → 终裁」，端到端通常要几十秒到几分钟；到步数 / 时间预算上限会被强制收口，拿到的是阶段性结论而不是最全结论。
+- **不替代 diff 级代码评审。** 它产出的是根因裁决与《裁决与后续工作部署指派单》（改哪里、谁去改、怎么验），不是逐行 patch 审阅；落地改动仍须由人或主力模型逐行核对。
+- **必须自己配阵容，插件不预置模型。** `panelists` 与 `finalExpert` 都留空时，`/expert` 会直接返回「去设置页配置阵容」的提示、`consult_expert_panel` 抛同一句提示、system prompt 顶部也会注入同样的警告——不会拿任何隐式默认模型跑。只配一位取证专家时，这一位同时充当取证 / 互审 / 终裁（`normalizeConfig` 的兜底）。
 
 ## 十、许可证
 

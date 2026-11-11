@@ -18,8 +18,8 @@ export const inject = ["tools", "subagents", "systemPrompt"];
 const expertEntry = () =>
   z.object({
     label: z.string().description("显示名称（面板与审批卡片里用这个名字）"),
-    provider: z.string().required().description("provider id，例如 magpie"),
-    model: z.string().required().description("模型 id，例如 ctyun/qoder-cn/qmodel_38max"),
+    provider: z.string().required().description("provider id（宿主里已注册的 provider；用 /expert routes 查看）"),
+    model: z.string().required().description("模型 id（/expert routes 里 provider/model 的后半段）"),
     reasoningEffort: z.string().description("推理档位；留空则用该路由默认档（该路由不支持时会拒绝显式档位）"),
   });
 
@@ -32,20 +32,15 @@ const expertEntry = () =>
 const optionalExpertEntry = () =>
   z.object({
     label: z.string().description("显示名称；留空则取专家库第一位"),
-    provider: z.string().description("provider id，例如 magpie"),
-    model: z.string().description("模型 id"),
+    provider: z.string().description("provider id；留空表示该位专家未配置"),
+    model: z.string().description("模型 id；留空表示该位专家未配置"),
     reasoningEffort: z.string().description("推理档位；留空则用该路由默认档"),
   });
 
 export const Config = z.object({
-  finalExpert: expertEntry()
-    .default({
-      label: "Gemini 4 Argon（终裁）",
-      provider: "magpie",
-      model: "ctyun/auto/gemini-4-argon",
-      reasoningEffort: "high",
-    })
-    .description("终裁专家：最贵，只在专家团收敛不了时出场"),
+  finalExpert: optionalExpertEntry().description(
+    "终裁专家：最贵，只在专家团收敛不了时出场；留空则自动由第一位取证专家承担",
+  ),
   panelists: z.array(expertEntry()).default([]).description("① 独立取证专家：≥1 位并行只读诊断，各自产出独立报告"),
   reviewer: optionalExpertEntry().description("② 互审官：逐条挑刺、裁决分歧、收敛方案；留空则取第一位取证专家"),
   enableArbiter: z.boolean().default(true).description("③ 是否启用终裁定稿（关闭则只跑前两轮）"),
@@ -114,31 +109,31 @@ function normalizeExpert(raw, fallbackLabel) {
   };
 }
 
+/** 未配置时的占位专家：provider / model 留空，routeOf() 与提示文案据此识别「未配置」。 */
+function unconfiguredExpert(label) {
+  return { label, provider: "", model: "" };
+}
+
 function normalizeConfig(raw = {}) {
   const cfg = typeof raw === "object" && raw !== null ? raw : {};
 
-  const finalExpert = normalizeExpert(cfg.finalExpert, "终裁专家") ?? {
-    label: "Gemini 4 Argon（终裁）",
-    provider: "magpie",
-    model: "ctyun/antigravity/gemini-4-argon",
-    reasoningEffort: "high",
-  };
-
-  const panelists = Array.isArray(cfg.panelists)
+  // 仓库不预置任何 provider / model：默认阵容为空，未配置时由 rosterSetupHint() 引导去设置页。
+  const configuredFinal = normalizeExpert(cfg.finalExpert, "终裁专家");
+  const configuredPanelists = Array.isArray(cfg.panelists)
     ? cfg.panelists
         .map((entry, index) => normalizeExpert(entry, `专家 ${index + 1}`))
         .filter((entry) => entry !== undefined)
-    : [finalExpert];
+    : [];
 
+  // 取证为空时退回终裁专家，终裁为空时退回第一位取证专家；两者都空 = 完全未配置。
+  const panelists = configuredPanelists.length > 0 ? configuredPanelists : configuredFinal ? [configuredFinal] : [];
+  const finalExpert = configuredFinal ?? panelists[0] ?? unconfiguredExpert("终裁专家");
   const reviewer = normalizeExpert(cfg.reviewer, undefined) ?? panelists[0] ?? finalExpert;
 
   return {
     finalExpert,
-    workerModel: normalizeExpert(cfg.workerModel, "日常主力") ?? {
-      label: "DeepSeek V4.1 Flash",
-      provider: "magpie",
-      model: "ctyun/auto/deepseek-v4.1-flash",
-    },
+    // 日常主力模型可以真的没有：留 undefined，界面与指派单按「未配置」渲染
+    workerModel: normalizeExpert(cfg.workerModel, "日常主力"),
     panelists: panelists.length > 0 ? panelists : [finalExpert],
     reviewer,
     // 并行取证数 = 已启用专家数（单一事实源），不再单列配置项
@@ -325,7 +320,26 @@ async function askWithTimeout(userQuestions, request, timeoutMs) {
 }
 
 function routeOf(expert) {
+  if (!expert || !expert.provider || !expert.model) return "（未配置）";
   return `${expert.provider}/${expert.model}`;
+}
+
+/** 两条路由是否完全相同（同 provider 且同 model）；灾备判断用，不依赖任何具体字面量。 */
+function sameRoute(a, b) {
+  return Boolean(a && b && a.provider && a.model) && a.provider === b.provider && a.model === b.model;
+}
+
+/**
+ * 阵容是否可用：至少一位带 provider + model 的取证专家。
+ * 可用时返回 null，否则返回一段可直接展示给用户的引导文案。
+ */
+function rosterSetupHint(config) {
+  const ready = (config.panelists ?? []).filter((expert) => expert && expert.provider && expert.model);
+  if (ready.length > 0) return null;
+  return (
+    `专家团还没有配置阵容：请打开「设置 → 专家团 → 设置」，至少选择一位取证专家（provider / model）；` +
+    `不知道有哪些路由可先执行 \`/${COMMAND_NAME} routes\`。仓库不预置任何默认模型。`
+  );
 }
 
 function rosterLines(config) {
@@ -862,12 +876,20 @@ function parseExpertCommand(rawInput) {
 }
 
 function buildMainAgentPromptSection(config) {
+  const setupHint = rosterSetupHint(config);
   return [
-    `## ⚡ 专家团（Expert Panel v3.1）分级会诊与接管机制`,
+    `## ⚡ 专家团（Expert Panel v5.0）分级会诊与接管机制`,
     "",
-    `> 插件版本标记：@local/expert-panel v3.1（UI 全量预设配置 + @/自然语言触发 + 极简一键确认 + Superagent 原地接管）`,
+    `> 插件版本标记：dsh-expert-panel v5.0（UI 全量预设配置 + @/自然语言触发 + 极简一键确认 + Superagent 原地接管）`,
     "",
-    `你身边有一个**多轮评审专家团**，用于处理主力模型搞不定的硬骨头。它只有一个固定流程：**① 独立取证 → ② 交叉互审${config.enableArbiter !== false ? " → ③ 终裁定稿" : ""}**，没有单专家 / 原地接管等旁路模式。用户已在「专家团 UI 页面」配好阵容，启动时只需点一次确认：`,
+    ...(setupHint === null
+      ? []
+      : [
+          `> ⚠️ **阵容未配置**：${setupHint}`,
+          `> 在用户完成配置之前，不要调用 \`${TOOL_NAME}\`，先把上面这句话转达给用户。`,
+          "",
+        ]),
+    `你身边有一个**多轮评审专家团**，用于处理主力模型搞不定的硬骨头。它只有一个固定流程：**① 独立取证 → ② 交叉互审${config.enableArbiter !== false ? " → ③ 终裁定稿" : ""}**，没有单专家 / 原地接管等旁路模式。${setupHint === null ? "用户已在「专家团 UI 页面」配好阵容，启动时只需点一次确认：" : "用户还没配好阵容，先把上面的提示转达给他。"}`,
     "",
     `### 专家团名册`,
     ...rosterLines(config).map((line) => `- ${line}`),
@@ -1290,25 +1312,12 @@ export function apply(ctx, rawConfig = {}) {
       text = text ? `${banner}\n\n${text}` : `${banner}\n\n（本轮未产出正文，已保留 ${telemetry.steps} 步 / ${telemetry.totalTools} 次工具调用的排查痕迹，可在「专家团」页签查看完整轨迹。）`;
     }
 
-    // Automatic route failover if a ctyun/antigravity/* route failed on step 1 with 0 output (e.g. 403 / stream timeout)
-    if (
-      settled.stopReason === "error" &&
-      !text &&
-      telemetry.steps <= 2 &&
-      String(expert.model).startsWith("ctyun/") &&
-      config.panelists.length > 0
-    ) {
-      const model = String(expert.model);
-      // 同一个 Gemini 4 Argon 在 ctyun 渠道下有两条独立上游路由：auto（路由组）与 antigravity（直连）。
-      // 任一上游 403 / 流超时时，自动切到另一条，避免整套会诊直接失败。
-      const routeFallback =
-        model === "ctyun/auto/gemini-4-argon"
-          ? { label: `${expert.label} (Antigravity 灾备路由)`, provider: expert.provider, model: "ctyun/antigravity/gemini-4-argon" }
-          : model === "ctyun/antigravity/gemini-4-argon"
-            ? { label: `${expert.label} (Auto 灾备路由)`, provider: expert.provider, model: "ctyun/auto/gemini-4-argon" }
-            : undefined;
-      const fallback = routeFallback ?? config.panelists.find((p) => routeOf(p) !== routeOf(expert)) ?? config.panelists[0];
-      if (routeOf(fallback) !== routeOf(expert)) {
+    // 灾备路由：某位专家在第 1 步就以 0 输出失败（鉴权 / 上游 403 / 流超时）时，换一条路由重跑一次。
+    // 不依赖任何具体 provider / model 字面量：优先同 provider 下的另一条路由，其次任意另一位取证专家的路由。
+    if (settled.stopReason === "error" && !text && telemetry.steps <= 2 && config.panelists.length > 0) {
+      const candidates = config.panelists.filter((p) => p && p.provider && p.model && !sameRoute(p, expert));
+      const fallback = candidates.find((p) => p.provider === expert.provider) ?? candidates[0];
+      if (fallback) {
         try {
           return await runExpert({
             parent,
@@ -2057,6 +2066,10 @@ export function apply(ctx, rawConfig = {}) {
       // Always sync the latest settings configured in the Expert Panel UI page!
       loadPersistedSettings(config);
 
+      // 阵容为空时不跑流水线（仓库不预置默认模型）：把「去设置页配置」原样交给模型转达。
+      const setupHint = rosterSetupHint(config);
+      if (setupHint !== null) throw new Error(setupHint);
+
       // 唯一流程：多轮评审。是否启用第 ③ 轮终裁由 UI 开关决定，不再有模式选择。
       const enableArbiter = config.enableArbiter !== false;
       const tier = enableArbiter ? "review" : "review_no_arbiter";
@@ -2207,7 +2220,7 @@ export function apply(ctx, rawConfig = {}) {
       return {
         kind: "success",
         text: [
-          `⚡ 专家团 (@local/expert-panel v2.1 · 编队/任务/通讯全链路融合)`,
+          `⚡ 专家团 (dsh-expert-panel v5.0 · 编队/任务/通讯全链路融合)`,
           ``,
           `### 名册`,
           ...rosterLines(config).map((line) => `- ${line}`),
@@ -2340,6 +2353,13 @@ export function apply(ctx, rawConfig = {}) {
         kind: "success",
         text: `⚡ 已向专家 \`${meta.memberName || meta.childId.slice(0, 8)}\`（${expert.label}）发送第 2+ 轮追问（运行编号 #${runId}），完成后将自动汇总回主会话并更新编队通讯记录。`,
       };
+    }
+
+    // 阵容为空时直接回引导文案，不启动流水线（仓库不预置默认模型）。
+    loadPersistedSettings(config);
+    const setupHint = rosterSetupHint(config);
+    if (setupHint !== null) {
+      return { kind: "error", text: setupHint };
     }
 
     const contextMode = parsed.contextMode ?? config.defaultContextMode;

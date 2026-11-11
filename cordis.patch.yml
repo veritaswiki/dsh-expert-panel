@@ -2,34 +2,15 @@
 #
 # 唯一的执行流程：① 独立取证（多位专家并行只读）→ ② 交叉互审（互审官收敛）→ ③ 终裁定稿（终裁专家下发指派单）。
 # 已移除「单专家接管 / 主会话原地接管」等旁路模式；第 ③ 轮可通过 enableArbiter 关闭。
+#
+# 这里只放纯行为开关，不预置任何 provider / model：
+# 装好后在「设置 → 专家团 → 设置」里选阵容（不知道有哪些路由可先用 /expert routes 查看）；
+# 未配置时 /expert 与 consult_expert_panel 会明确提示先去配置，不会使用任何隐式默认模型。
 - insert:
     - id: expert-panel
       name: 'dsh-expert-panel'
       config:
-        # ③ 终裁定稿专家
-        finalExpert:
-          label: Gemini 4 Argon（终裁）
-          provider: magpie
-          model: ctyun/auto/gemini-4-argon
-          reasoningEffort: high
-        # ① 独立取证专家（并行只读）
-        panelists:
-          - label: Gemini 4 Argon（终裁）
-            provider: magpie
-            model: ctyun/auto/gemini-4-argon
-            reasoningEffort: high
-        # ② 交叉互审官
-        reviewer:
-          label: Gemini 4 Argon（终裁）
-          provider: magpie
-          model: ctyun/auto/gemini-4-argon
-          reasoningEffort: high
-        # 日常主力施工模型（专家下发指派单后负责落地）
-        workerModel:
-          label: DeepSeek V4.1 Flash
-          provider: magpie
-          model: ctyun/auto/deepseek-v4.1-flash
         enableArbiter: true
         requireApproval: true
-        maxStepsPerExpert: 60
+        maxStepsPerExpert: 30
         expertTimeoutSeconds: 1800

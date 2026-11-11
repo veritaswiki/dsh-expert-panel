@@ -7,23 +7,18 @@ window.__ModuleLoader__.load({
     const LABEL_PREFIX = '⚡专家团';
     const STORAGE_SLOT = 'expert-panel-ui-state-v3';
 
-    const DEFAULT_MODELS = [
-      { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high', supportsEffort: true },
-      { label: 'Qwen3.8-Max', provider: 'magpie', model: 'ctyun/qoder-cn/qmodel_38max' },
-      { label: 'Kimi-K3.1-Pro', provider: 'magpie', model: 'ctyun/qoder-cn/kmodel_latest' },
-      { label: 'GLM-5.3', provider: 'magpie', model: 'ctyun/qoder-cn/gmodel' },
-      { label: 'Gemini 3.8 Flash', provider: 'magpie', model: 'ctyun/antigravity/gemini-3.8-flash', reasoningEffort: 'high', supportsEffort: true },
-      { label: 'DeepSeek V4.1 Flash (日常主力)', provider: 'magpie', model: 'ctyun/auto/deepseek-v4.1-flash' },
-    ];
+    // 仓库不预置任何模型：候选路由只来自宿主 provider 目录（Host API 的 availableModels）。
+    const DEFAULT_MODELS = [];
+
+    // 未配置时的占位专家：provider/model 为空，界面按「未配置」渲染，不会伪造成一条可用路由。
+    const UNSET_EXPERT = { label: '未配置', provider: '', model: '' };
 
     const DEFAULT_CONFIG = {
       enableArbiter: true,
-      finalExpert: { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high' },
-      workerModel: { label: 'DeepSeek V4.1 Flash', provider: 'magpie', model: 'ctyun/auto/deepseek-v4.1-flash' },
-      panelists: [
-        { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high' },
-      ],
-      reviewer: { label: 'Gemini 4 Argon（终裁）', provider: 'magpie', model: 'ctyun/auto/gemini-4-argon', reasoningEffort: 'high' },
+      finalExpert: { ...UNSET_EXPERT },
+      workerModel: { ...UNSET_EXPERT },
+      panelists: [],
+      reviewer: { ...UNSET_EXPERT },
       requireApproval: true,
       maxStepsPerExpert: 30,
       expertTimeoutSeconds: 1800,
@@ -754,8 +749,11 @@ window.__ModuleLoader__.load({
           const trimmed = customRoute.trim();
           if (!trimmed) return;
           const slash = trimmed.indexOf('/');
-          const provider = slash > 0 ? trimmed.slice(0, slash).trim() : 'magpie';
-          const model = slash > 0 ? trimmed.slice(slash + 1).trim() : trimmed;
+          // 必须写成 provider/model：仓库不再替用户补一个默认 provider
+          if (slash <= 0) return;
+          const provider = trimmed.slice(0, slash).trim();
+          const model = trimmed.slice(slash + 1).trim();
+          if (!provider || !model) return;
           const label = customLabel.trim() || model.split('/').pop() || model;
           const entry = { label, provider, model };
           const cur = Array.isArray(cfg.panelists) ? [...cfg.panelists] : [];
@@ -853,7 +851,7 @@ window.__ModuleLoader__.load({
                     'select',
                     {
                       className: 'ep-select',
-                      value: `${finalRef.provider}/${finalRef.model}`,
+                      value: finalRef.model ? `${finalRef.provider}/${finalRef.model}` : '',
                       onChange: (e) => {
                         const picked = findModelObj(e.target.value, finalRef);
                         onSave({ ...cfg, finalExpert: picked });
@@ -902,7 +900,7 @@ window.__ModuleLoader__.load({
                     'select',
                     {
                       className: 'ep-select',
-                      value: `${workerRef.provider}/${workerRef.model}`,
+                      value: workerRef.model ? `${workerRef.provider}/${workerRef.model}` : '',
                       onChange: (e) => {
                         const picked = findModelObj(e.target.value, workerRef);
                         delete picked.reasoningEffort;
@@ -933,7 +931,7 @@ window.__ModuleLoader__.load({
                     'select',
                     {
                       className: 'ep-select',
-                      value: `${reviewerRef.provider}/${reviewerRef.model}`,
+                      value: reviewerRef.model ? `${reviewerRef.provider}/${reviewerRef.model}` : '',
                       onChange: (e) => {
                         const picked = findModelObj(e.target.value, reviewerRef);
                         delete picked.reasoningEffort;
@@ -977,6 +975,13 @@ window.__ModuleLoader__.load({
                   h('code', { className: 'ep-route-tag' }, `${m.provider}/${m.model}`),
                 );
               }),
+              modelOptions.length === 0
+                ? h(
+                    'div',
+                    { className: 'ep-empty', key: 'no-models' },
+                    '宿主还没有返回可用的 provider / model 列表：先确认 DSH 里已配好 provider，或用下方输入框手填 provider/model。',
+                  )
+                : null,
             ),
             h(
               'div',
@@ -984,7 +989,7 @@ window.__ModuleLoader__.load({
               h('input', {
                 type: 'text',
                 className: 'ep-input',
-                placeholder: '添加自定义路由（例如 magpie/ctyun/qoder-cn/qmodel_38max）',
+                placeholder: '添加自定义路由（provider/model，用 /expert routes 查看）',
                 value: customRoute,
                 onChange: (e) => setCustomRoute(e.target.value),
               }),
@@ -1120,7 +1125,7 @@ window.__ModuleLoader__.load({
         const [mainTab, setMainTab] = React.useState('monitor'); // 'monitor' | 'settings'
         const [apiOnline, setApiOnline] = React.useState(false);
         const [cfg, setCfg] = React.useState(() => readLocalSettings());
-        const [availableModels, setAvailableModels] = React.useState(DEFAULT_MODELS);
+        const [availableModels, setAvailableModels] = React.useState([]);
         const [promptInput, setPromptInput] = React.useState('');
         const [statusBanner, setStatusBanner] = React.useState('');
         const [busyAction, setBusyAction] = React.useState(false);
@@ -1299,7 +1304,9 @@ window.__ModuleLoader__.load({
               h(
                 'p',
                 { className: 'ep-subtitle' },
-                '流程、阵容与预算都在本页预设完成。日常对话只需输入 @专家 或说「请专家看看」，点一次确认即可启动多轮评审。',
+                (cfg.panelists ?? []).length === 0
+                  ? '还没有配置阵容：到「⚙️ 设置」里至少选一位取证专家（provider / model）。未配置前 /expert 与 @专家 不会启动任何模型。'
+                  : '流程、阵容与预算都在本页预设完成。日常对话只需输入 @专家 或说「请专家看看」，点一次确认即可启动多轮评审。',
               ),
             ),
             h(
