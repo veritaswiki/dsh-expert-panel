@@ -155,46 +155,6 @@ function loadAllProjCaches() {
   return byId;
 }
 
-async function collectAvailableModels(ctx, config) {
-  const seen = new Map();
-  const add = (item) => {
-    if (!item || !item.provider || !item.model) return;
-    const key = `${item.provider}/${item.model}`;
-    if (!seen.has(key)) seen.set(key, item);
-  };
-
-  // 只放真实存在的东西：已配置的路由 + 宿主 provider 目录。不预置任何「常见路由」，
-  // 宿主没注册 provider 时这个列表就是空的，设置页会提示用户手填 provider/model。
-  if (config.finalExpert) add({ ...config.finalExpert, supportsEffort: true });
-
-  if (config.reviewer) add(config.reviewer);
-  if (config.workerModel) add(config.workerModel);
-  for (const p of config.panelists ?? []) add(p);
-
-  const llm = ctx.get("llm");
-  if (llm) {
-    try {
-      for (const prov of llm.listProviders()) {
-        const models = await llm.listModels(prov.id).catch(() => []);
-        for (const m of Array.isArray(models) ? models : []) {
-          if (!m?.id) continue;
-          // Filter out Claude models per user preference
-          if (/claude/i.test(m.id) || /claude/i.test(m.name || "")) continue;
-          add({
-            label: m.name || m.id,
-            provider: prov.id,
-            model: m.id,
-            supportsEffort: Array.isArray(m.reasoning?.efforts) && m.reasoning.efforts.length > 0,
-          });
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  return [...seen.values()];
-}
-
 async function buildStateSnapshot(ctx, { config, expertChildren }) {
   const byId = loadAllProjCaches();
   const liveAgents = ctx.get("agents");
@@ -322,12 +282,9 @@ async function buildStateSnapshot(ctx, { config, expertChildren }) {
     });
   }
 
-  const availableModels = await collectAvailableModels(ctx, config);
-
   return {
     runs,
     activeSessions,
-    availableModels,
     config: {
       enableArbiter: config.enableArbiter !== false,
       finalExpert: config.finalExpert,

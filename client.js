@@ -7,11 +7,131 @@ window.__ModuleLoader__.load({
     const LABEL_PREFIX = '⚡专家团';
     const STORAGE_SLOT = 'expert-panel-ui-state-v3';
 
-    // 仓库不预置任何模型：候选路由只来自宿主 provider 目录（Host API 的 availableModels）。
-    const DEFAULT_MODELS = [];
-
     // 未配置时的占位专家：provider/model 为空，界面按「未配置」渲染，不会伪造成一条可用路由。
     const UNSET_EXPERT = { label: '未配置', provider: '', model: '' };
+
+    /**
+     * 宿主 `modelDirectories` 服务（由 @deepseek-ai/dsh-client-ui-model-selection 提供）。
+     * 新会话窗口的模型选择读的就是这份目录，这里复用同一份数据，不再自建 provider/model 列表。
+     */
+    let hostModelService = null;
+    const hostModelListeners = new Set();
+
+    /** 服务可能在设置页首次渲染之后才注入完成：订阅一下，晚到也能刷新界面。 */
+    function subscribeHostModel(listener) {
+      hostModelListeners.add(listener);
+      return () => {
+        hostModelListeners.delete(listener);
+      };
+    }
+
+    function announceHostModel() {
+      for (const listener of [...hostModelListeners]) {
+        try {
+          listener();
+        } catch {
+          /* 单个订阅者异常不影响其他订阅者 */
+        }
+      }
+    }
+
+    /**
+     * 宿主模型目录快照：`{ groups: [{ id, name, models: [{ id, name, reasoning }] }] }`。
+     * 目录不可用（宿主没装 / 未就绪）时 status='unavailable'，设置页据此给出降级提示。
+     */
+    function useHostModelCatalog() {
+      const [state, setState] = React.useState({ status: 'loading', groups: [], failures: [], error: '' });
+      const [service, setService] = React.useState(hostModelService);
+
+      React.useEffect(() => {
+        if (service !== null) return undefined;
+        setState((prev) => (prev.status === 'loading' ? prev : { status: 'loading', groups: [], failures: [], error: '' }));
+        return subscribeHostModel(() => setService(hostModelService));
+      }, [service]);
+
+      React.useEffect(() => {
+        const catalog = service && service.catalog;
+        if (!catalog || typeof catalog.load !== 'function' || !catalog.store || typeof catalog.store.getSnapshot !== 'function') {
+          setState({ status: 'unavailable', groups: [], failures: [], error: '' });
+          return undefined;
+        }
+
+        let alive = true;
+        const read = () => {
+          if (!alive) return;
+          let snapshot = null;
+          try {
+            snapshot = catalog.store.getSnapshot();
+          } catch {
+            snapshot = null;
+          }
+          const value = snapshot && snapshot.value ? snapshot.value : null;
+          setState({
+            status: value === null ? (snapshot && snapshot.status === 'error' ? 'error' : 'loading') : 'ready',
+            groups: value && Array.isArray(value.groups) ? value.groups : [],
+            failures: value && Array.isArray(value.failures) ? value.failures : [],
+            error: snapshot && snapshot.error ? String(snapshot.error) : '',
+          });
+        };
+
+        read();
+        let off = null;
+        try {
+          off = catalog.store.subscribe(read);
+        } catch {
+          off = null;
+        }
+        try {
+          Promise.resolve(catalog.load()).then(read).catch(read);
+        } catch {
+          /* 保持当前快照，UI 会显示降级提示 */
+        }
+
+        return () => {
+          alive = false;
+          try {
+            if (typeof off === 'function') off();
+          } catch {
+            /* ignore */
+          }
+        };
+      }, [service]);
+
+      return state;
+    }
+
+    /** 把宿主目录的 provider 分组摊平成 [{ provider, model, label, reasoning }]，顺序与宿主一致。 */
+    function flattenHostModels(groups) {
+      const out = [];
+      for (const group of Array.isArray(groups) ? groups : []) {
+        const provider = group && group.id ? String(group.id) : '';
+        if (!provider) continue;
+        for (const model of Array.isArray(group.models) ? group.models : []) {
+          if (!model || !model.id) continue;
+          out.push({
+            provider,
+            model: String(model.id),
+            label: model.name ? String(model.name) : String(model.id),
+            reasoning: model.reasoning && typeof model.reasoning === 'object' ? model.reasoning : undefined,
+          });
+        }
+      }
+      return out;
+    }
+
+    /** 按宿主 provider 分组，用于渲染与宿主一致的分组下拉（provider 名直接用宿主给的）。 */
+    function hostModelGroups(groups) {
+      const out = [];
+      for (const group of Array.isArray(groups) ? groups : []) {
+        const provider = group && group.id ? String(group.id) : '';
+        if (!provider) continue;
+        const models = (Array.isArray(group.models) ? group.models : [])
+          .filter((model) => model && model.id)
+          .map((model) => ({ provider, model: String(model.id), label: model.name ? String(model.name) : String(model.id) }));
+        if (models.length > 0) out.push({ id: provider, label: group.name ? String(group.name) : provider, models });
+      }
+      return out;
+    }
 
     const DEFAULT_CONFIG = {
       enableArbiter: true,
@@ -703,31 +823,32 @@ window.__ModuleLoader__.load({
       }
 
       // ---- Full Visual Settings Center Component ----
-      function SettingsView({ cfg, models, onSave, saving, banner }) {
-        const modelOptions = React.useMemo(() => {
-          const map = new Map();
-          for (const m of [...DEFAULT_MODELS, ...(Array.isArray(models) ? models : [])]) {
-            if (!m || !m.provider || !m.model) continue;
-            if (/claude/i.test(m.model) || /claude/i.test(m.label || '')) continue;
-            const key = `${m.provider}/${m.model}`;
-            if (!map.has(key)) map.set(key, m);
-          }
-          return [...map.values()];
-        }, [models]);
+      function SettingsView({ cfg, onSave, saving, banner }) {
+        // 候选模型 = 宿主模型目录（与新会话窗口的模型选择同源），不再由插件自建、也不再手填。
+        const hostCatalog = useHostModelCatalog();
+        const modelOptions = React.useMemo(() => flattenHostModels(hostCatalog.groups), [hostCatalog.groups]);
+        const modelGroups = React.useMemo(() => hostModelGroups(hostCatalog.groups), [hostCatalog.groups]);
 
-        const [customRoute, setCustomRoute] = React.useState('');
-        const [customLabel, setCustomLabel] = React.useState('');
-
-        const findModelObj = (routeStr, fallback) => {
+        /** 用户在下拉里选中一条宿主模型 → 落盘结构 { label, provider, model }（磁盘格式不变）。 */
+        const selectionOf = (routeStr) => {
           const found = modelOptions.find((m) => `${m.provider}/${m.model}` === routeStr);
-          if (found) return { label: found.label, provider: found.provider, model: found.model, ...(found.reasoningEffort ? { reasoningEffort: found.reasoningEffort } : {}) };
-          const slash = String(routeStr || '').indexOf('/');
-          if (slash > 0) {
-            const provider = routeStr.slice(0, slash);
-            const model = routeStr.slice(slash + 1);
-            return { label: model.split('/').pop() || model, provider, model };
-          }
-          return fallback;
+          if (found === undefined) return undefined;
+          return { label: found.label, provider: found.provider, model: found.model };
+        };
+
+        /** 已配置但宿主目录里没有的模型：保留一个可见选项，别让它显示成空白（配置本身不动）。 */
+        const staleOption = (expert) => {
+          if (!expert || !expert.model) return null;
+          const listed = modelOptions.some((m) => m.provider === expert.provider && m.model === expert.model);
+          if (listed) return null;
+          const label = expert.label ? String(expert.label) : String(expert.model);
+          return h('option', { key: 'stale-current', value: `${expert.provider}/${expert.model}` }, `${label}（当前配置，宿主目录里没有）`);
+        };
+
+        /** 该模型在宿主目录里声明的推理档位（没声明就只显示「默认档位」）。 */
+        const effortChoicesOf = (expert) => {
+          const found = modelOptions.find((m) => m.provider === expert?.provider && m.model === expert?.model);
+          return found && found.reasoning && Array.isArray(found.reasoning.efforts) ? found.reasoning.efforts : [];
         };
 
         const isPanelistChecked = (m) =>
@@ -742,26 +863,6 @@ window.__ModuleLoader__.load({
           } else {
             cur.push({ label: m.label, provider: m.provider, model: m.model });
           }
-          onSave({ ...cfg, panelists: cur });
-        };
-
-        const addCustomModel = () => {
-          const trimmed = customRoute.trim();
-          if (!trimmed) return;
-          const slash = trimmed.indexOf('/');
-          // 必须写成 provider/model：仓库不再替用户补一个默认 provider
-          if (slash <= 0) return;
-          const provider = trimmed.slice(0, slash).trim();
-          const model = trimmed.slice(slash + 1).trim();
-          if (!provider || !model) return;
-          const label = customLabel.trim() || model.split('/').pop() || model;
-          const entry = { label, provider, model };
-          const cur = Array.isArray(cfg.panelists) ? [...cfg.panelists] : [];
-          if (!cur.some((p) => p.provider === provider && p.model === model)) {
-            cur.push(entry);
-          }
-          setCustomRoute('');
-          setCustomLabel('');
           onSave({ ...cfg, panelists: cur });
         };
 
@@ -853,12 +954,20 @@ window.__ModuleLoader__.load({
                       className: 'ep-select',
                       value: finalRef.model ? `${finalRef.provider}/${finalRef.model}` : '',
                       onChange: (e) => {
-                        const picked = findModelObj(e.target.value, finalRef);
-                        onSave({ ...cfg, finalExpert: picked });
+                        const picked = selectionOf(e.target.value);
+                        if (picked !== undefined) onSave({ ...cfg, finalExpert: picked });
                       },
                     },
-                    ...modelOptions.map((m) =>
-                      h('option', { key: `${m.provider}/${m.model}`, value: `${m.provider}/${m.model}` }, `${m.label} (${m.provider}/${m.model})`),
+                    h('option', { value: '' }, '— 选一位终裁专家 —'),
+                    staleOption(finalRef),
+                    ...modelGroups.map((group) =>
+                      h(
+                        'optgroup',
+                        { key: group.id, label: group.label },
+                        ...group.models.map((m) =>
+                          h('option', { key: `${m.provider}/${m.model}`, value: `${m.provider}/${m.model}` }, m.label),
+                        ),
+                      ),
                     ),
                   ),
                   h(
@@ -873,12 +982,15 @@ window.__ModuleLoader__.load({
                         else delete updated.reasoningEffort;
                         onSave({ ...cfg, finalExpert: updated });
                       },
-                      title: '推理档位（仅声明了 reasoningEfforts 的路由如 Argon 支持 high；其他路由请选默认）',
+                      title: '推理档位来自宿主模型目录：该模型声明了哪些档位就只列哪些',
                     },
                     h('option', { value: '' }, '默认档位 (推荐)'),
-                    h('option', { value: 'high' }, 'high (仅 Argon/Gemini)'),
-                    h('option', { value: 'medium' }, 'medium'),
-                    h('option', { value: 'low' }, 'low'),
+                    ...effortChoicesOf(finalRef).map((effort) =>
+                      h('option', { key: `effort-${effort.id}`, value: effort.id }, effort.name ? String(effort.name) : String(effort.id)),
+                    ),
+                    finalRef.reasoningEffort && !effortChoicesOf(finalRef).some((effort) => effort.id === finalRef.reasoningEffort)
+                      ? h('option', { key: 'effort-stale', value: finalRef.reasoningEffort }, `${finalRef.reasoningEffort}（当前值）`)
+                      : null,
                   ),
                   h(
                     'span',
@@ -902,13 +1014,20 @@ window.__ModuleLoader__.load({
                       className: 'ep-select',
                       value: workerRef.model ? `${workerRef.provider}/${workerRef.model}` : '',
                       onChange: (e) => {
-                        const picked = findModelObj(e.target.value, workerRef);
-                        delete picked.reasoningEffort;
-                        onSave({ ...cfg, workerModel: picked });
+                        const picked = selectionOf(e.target.value);
+                        if (picked !== undefined) onSave({ ...cfg, workerModel: picked });
                       },
                     },
-                    ...modelOptions.map((m) =>
-                      h('option', { key: `${m.provider}/${m.model}`, value: `${m.provider}/${m.model}` }, `${m.label} (${m.provider}/${m.model})`),
+                    h('option', { value: '' }, '— 不指定（仅展示用）—'),
+                    staleOption(workerRef),
+                    ...modelGroups.map((group) =>
+                      h(
+                        'optgroup',
+                        { key: group.id, label: group.label },
+                        ...group.models.map((m) =>
+                          h('option', { key: `${m.provider}/${m.model}`, value: `${m.provider}/${m.model}` }, m.label),
+                        ),
+                      ),
                     ),
                   ),
                   h(
@@ -933,13 +1052,20 @@ window.__ModuleLoader__.load({
                       className: 'ep-select',
                       value: reviewerRef.model ? `${reviewerRef.provider}/${reviewerRef.model}` : '',
                       onChange: (e) => {
-                        const picked = findModelObj(e.target.value, reviewerRef);
-                        delete picked.reasoningEffort;
-                        onSave({ ...cfg, reviewer: picked });
+                        const picked = selectionOf(e.target.value);
+                        if (picked !== undefined) onSave({ ...cfg, reviewer: picked });
                       },
                     },
-                    ...modelOptions.map((m) =>
-                      h('option', { key: `${m.provider}/${m.model}`, value: `${m.provider}/${m.model}` }, `${m.label} (${m.provider}/${m.model})`),
+                    h('option', { value: '' }, '— 留空＝用第一位取证专家 —'),
+                    staleOption(reviewerRef),
+                    ...modelGroups.map((group) =>
+                      h(
+                        'optgroup',
+                        { key: group.id, label: group.label },
+                        ...group.models.map((m) =>
+                          h('option', { key: `${m.provider}/${m.model}`, value: `${m.provider}/${m.model}` }, m.label),
+                        ),
+                      ),
                     ),
                   ),
                   h(
@@ -951,7 +1077,27 @@ window.__ModuleLoader__.load({
               ),
             ),
 
-            h('div', { className: 'ep-subhead' }, `① 独立取证专家（已启用 ${(cfg.panelists ?? []).length} 个）`),
+            h(
+              'div',
+              { className: 'ep-subhead', style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+              `① 独立取证专家（已启用 ${(cfg.panelists ?? []).length} 个）`,
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'ep-link-btn',
+                  onClick: () => {
+                    try {
+                      const refresh = hostModelService && hostModelService.catalog && hostModelService.catalog.refresh;
+                      if (typeof refresh === 'function') refresh.call(hostModelService.catalog);
+                    } catch {
+                      /* 目录不可用时保持当前列表 */
+                    }
+                  },
+                },
+                '重新加载模型目录',
+              ),
+            ),
             h('p', { className: 'ep-card-desc' }, '点击切换「● 已启用 / ○ 已暂停」；未启用的模型在任何情况下都不会被启动。'),
             h(
               'div',
@@ -979,37 +1125,11 @@ window.__ModuleLoader__.load({
                 ? h(
                     'div',
                     { className: 'ep-empty', key: 'no-models' },
-                    '宿主还没有返回可用的 provider / model 列表：先确认 DSH 里已配好 provider，或用下方输入框手填 provider/model。',
+                    hostCatalog.status === 'error'
+                      ? `宿主的模型目录读取失败：${hostCatalog.error || '未知错误'}。修好 DSH 的 provider 配置后点上方「重新加载」。`
+                      : '宿主的模型目录还没返回任何模型：先在 DSH 里把 provider / 模型凭据配好，这里会自动列出与新会话窗口同源的模型列表。',
                   )
                 : null,
-            ),
-            h(
-              'div',
-              { className: 'ep-custom-add' },
-              h('input', {
-                type: 'text',
-                className: 'ep-input',
-                placeholder: '添加自定义路由（provider/model，用 /expert routes 查看）',
-                value: customRoute,
-                onChange: (e) => setCustomRoute(e.target.value),
-              }),
-              h('input', {
-                type: 'text',
-                className: 'ep-input',
-                style: { maxWidth: '180px' },
-                placeholder: '显示名称（可选）',
-                value: customLabel,
-                onChange: (e) => setCustomLabel(e.target.value),
-              }),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'ep-action-btn ep-action-primary',
-                  onClick: addCustomModel,
-                },
-                '+ 加入专家库',
-              ),
             ),
           ),
 
@@ -1125,7 +1245,6 @@ window.__ModuleLoader__.load({
         const [mainTab, setMainTab] = React.useState('monitor'); // 'monitor' | 'settings'
         const [apiOnline, setApiOnline] = React.useState(false);
         const [cfg, setCfg] = React.useState(() => readLocalSettings());
-        const [availableModels, setAvailableModels] = React.useState([]);
         const [promptInput, setPromptInput] = React.useState('');
         const [statusBanner, setStatusBanner] = React.useState('');
         const [busyAction, setBusyAction] = React.useState(false);
@@ -1136,9 +1255,6 @@ window.__ModuleLoader__.load({
             const data = await callHostApi('state');
             hostState = data;
             setApiOnline(true);
-            if (Array.isArray(data.availableModels) && data.availableModels.length > 0) {
-              setAvailableModels(data.availableModels);
-            }
             if (!syncedLocalOnce.current) {
               syncedLocalOnce.current = true;
               const localRaw = localStorage.getItem(STORAGE_SLOT);
@@ -1305,7 +1421,7 @@ window.__ModuleLoader__.load({
                 'p',
                 { className: 'ep-subtitle' },
                 (cfg.panelists ?? []).length === 0
-                  ? '还没有配置阵容：到「⚙️ 设置」里至少选一位取证专家（provider / model）。未配置前 /expert 与 @专家 不会启动任何模型。'
+                  ? '还没有配置阵容：到「⚙️ 设置」的模型选择器里至少选一位取证专家。未配置前 /expert 与 @专家 不会启动任何模型。'
                   : '流程、阵容与预算都在本页预设完成。日常对话只需输入 @专家 或说「请专家看看」，点一次确认即可启动多轮评审。',
               ),
             ),
@@ -1373,7 +1489,6 @@ window.__ModuleLoader__.load({
           mainTab === 'settings'
             ? h(SettingsView, {
                 cfg,
-                models: availableModels,
                 onSave: handleSaveConfig,
                 saving: busyAction,
                 banner: statusBanner,
@@ -1574,6 +1689,26 @@ window.__ModuleLoader__.load({
       }
 
       // 左侧栏全局面板：main（页面）+ sidebar.panellist（图标入口，order 16 位于「自进化」order 15 正下方）
+      // 复用宿主自己的模型目录：设置页的模型下拉与「新会话窗口」读的是同一份数据
+      // （服务由 @deepseek-ai/dsh-client-ui-model-selection 提供，已在 package.json 的 dsh.client.inject 声明）。
+      // 服务若已就绪就先同步取一次，避免设置页首帧显示成「目录不可用」；没就绪则等 inject 回调。
+      try {
+        const ready = typeof ctx.get === 'function' ? ctx.get('modelDirectories') : null;
+        if (ready) hostModelService = ready;
+      } catch {
+        /* 未就绪：等下面的 inject */
+      }
+      ctx.inject(['modelDirectories'], (scope) => {
+        hostModelService = scope.modelDirectories;
+        announceHostModel();
+        try {
+          const catalog = hostModelService && hostModelService.catalog;
+          if (catalog && typeof catalog.load === 'function') catalog.load().catch(() => {});
+        } catch {
+          /* 目录不可用时设置页显示降级提示 */
+        }
+      });
+
       ctx.slots.inject('main', () =>
         ctx.slots.register({ name: 'main', key: 'expert-panel' }, (props) => h(ExpertPanel, props)),
       );

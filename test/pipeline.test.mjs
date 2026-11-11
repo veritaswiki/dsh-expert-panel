@@ -214,3 +214,61 @@ test("only panelists configured: the first panelist doubles as arbiter", async (
   );
   assert.equal(created.length, 3, "evidence + review + arbiter all ran");
 });
+
+/* ---------- 设置页「用宿主模型选择器选一条模型」→ 落盘 ---------- */
+
+test("picker selection persists exactly as { provider, model, label, reasoningEffort }", async () => {
+  const httpApi = await import(new URL("../http-api.js", import.meta.url).href);
+  const picked = { label: "Model X", provider: "prov", model: "prov/x", reasoningEffort: "high" };
+  const config = { enableArbiter: true, requireApproval: true, maxStepsPerExpert: 30, expertTimeoutSeconds: 1800, panelists: [] };
+
+  // 选择器可能带上视图字段（supportsEffort 之类），落盘时必须被丢掉
+  httpApi.applySettingsPatch(config, { finalExpert: { ...picked, supportsEffort: true } });
+  assert.deepEqual(config.finalExpert, picked, "view-only fields are not persisted");
+
+  httpApi.savePersistedSettings(config, {});
+  const reloaded = { ...config, finalExpert: undefined };
+  httpApi.loadPersistedSettings(reloaded);
+  assert.deepEqual(reloaded.finalExpert, picked, "round-trips through the settings file");
+  assert.deepEqual(reloaded.panelists, []);
+});
+
+test("multi-select of panelists keeps the persisted entry shape", async () => {
+  const httpApi = await import(new URL("../http-api.js", import.meta.url).href);
+  const config = { enableArbiter: true, requireApproval: true, maxStepsPerExpert: 30, expertTimeoutSeconds: 1800, panelists: [] };
+  httpApi.applySettingsPatch(config, {
+    panelists: [
+      { label: "Model A", provider: "p", model: "p/a" },
+      { label: "Model B", provider: "p", model: "p/b", reasoningEffort: "low" },
+    ],
+  });
+  assert.deepEqual(config.panelists, [
+    { label: "Model A", provider: "p", model: "p/a" },
+    { label: "Model B", provider: "p", model: "p/b", reasoningEffort: "low" },
+  ]);
+});
+
+test("clearing a selection (empty string) leaves the stored expert untouched", async () => {
+  const httpApi = await import(new URL("../http-api.js", import.meta.url).href);
+  const kept = { label: "Model A", provider: "p", model: "p/a" };
+  const config = { enableArbiter: true, requireApproval: true, maxStepsPerExpert: 30, expertTimeoutSeconds: 1800, panelists: [] };
+  httpApi.applySettingsPatch(config, { finalExpert: kept });
+  httpApi.applySettingsPatch(config, { finalExpert: { label: "", provider: "", model: "" } });
+  assert.deepEqual(config.finalExpert, kept, "an empty patch never wipes the expert");
+});
+
+test("client reuses the host modelDirectories service and ships no hand-typed route box", () => {
+  const source = fs.readFileSync(new URL("../client.js", import.meta.url), "utf8");
+  assert.match(source, /ctx\.inject\(\['modelDirectories'\]/, "mounts the host model catalog service");
+  assert.ok(!source.includes("customRoute"), "no hand-typed route input state");
+  assert.ok(!source.includes("DEFAULT_MODELS"), "no plugin-owned seed model list");
+  assert.ok(source.includes("optgroup"), "renders the host catalog as grouped options");
+});
+
+test("package.json declares the host model-selection client package", () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.ok(
+    pkg.dsh.client.inject.includes("@deepseek-ai/dsh-client-ui-model-selection"),
+    "client bundle must wait for the host model-selection UI",
+  );
+});

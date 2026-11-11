@@ -31,6 +31,8 @@ Stage ② is mandatory. There are **no** single-expert or in-session-takeover si
 
 `Config` in `index.js` (Schemastery) has exactly these keys; all of them are editable in `Settings → Expert Panel → Settings`.
 
+**Models are never typed by hand.** The expert dropdowns read the host `modelDirectories` service (provided by `@deepseek-ai/dsh-client-ui-model-selection`) — the same catalog, provider names and reasoning effort levels the new-session model picker uses. The plugin keeps no model list of its own.
+
 **The repository ships no `provider` / `model` at all.** After installing, pick a roster on that settings page first; `/expert routes` lists the routes your host actually exposes.
 
 | Field | Type | Default | Meaning |
@@ -62,6 +64,8 @@ Sidebar entry → two tabs:
 
 Design system: 5 font sizes / 8 spacing steps / 3 radii / 4 accent colours / borderless cards.
 
+All four model slots (arbiter / evidence / reviewer / worker) use the host catalog dropdown, and the reasoning-effort list only offers the levels that model declares in the catalog.
+
 ## Install
 
 > Not published to the npm registry yet (`npm view dsh-expert-panel` returns 404), so neither route below uses the npm package name.
@@ -79,7 +83,7 @@ dsh plugin --profile web add .
 
 ### Configure the roster right after installing
 
-`/expert routes` lists the `provider/model` routes your host actually exposes; pick at least one evidence expert in `Settings → Expert Panel → Settings`. Until then `/expert` only answers "roster is not configured" and no model is called.
+Open `Settings → Expert Panel → Settings` and pick at least one evidence expert from the model dropdown (the host catalog); the arbiter / reviewer / worker slots work the same way. Until then `/expert` only answers "roster is not configured" and no model is called. `/expert routes` still prints the routes as text.
 
 ## Develop
 
@@ -93,6 +97,7 @@ npm test
 - **Every summon has a real cost.** One review is N evidence experts + 1 reviewer (+ 1 arbiter when `enableArbiter` is on), each burning up to `maxStepsPerExpert`, billed on the models you picked. It is not a single cheap completion.
 - **Cross-model latency is visible.** Evidence runs in parallel, review and verdict run serially, so an end-to-end run typically takes tens of seconds to minutes; hitting the step or time budget forces a wrap-up, which yields a partial conclusion, not the fullest one.
 - **It does not replace diff-level code review.** The output is a root-cause verdict plus a work dispatch (what to change, who changes it, how to verify) — not a line-by-line patch review. Someone still has to read the diff.
+- **The model dropdown depends on the host model-selection package.** Candidates come from the `modelDirectories` service provided by `@deepseek-ai/dsh-client-ui-model-selection` (hence `engines.dsh` is `>=0.2.2-rc.1`). When the host catalog returns nothing, the page shows a degraded hint plus a "reload catalog" button — it never falls back to hand typing.
 - **You must configure the roster; no model is shipped.** With both `panelists` and `finalExpert` empty, `/expert` returns a "go configure the roster" hint, `consult_expert_panel` raises the same hint, and the system prompt carries the same warning — no implicit default model is ever used. With a single evidence expert configured, that one expert also acts as reviewer and arbiter (`normalizeConfig` fallback).
 
 ## License

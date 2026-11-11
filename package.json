@@ -1,6 +1,6 @@
 {
   "name": "dsh-expert-panel",
-  "version": "5.0.0",
+  "version": "0.1.0",
   "description": "多轮评审专家团：主力模型卡住时，用一次带硬性收口契约的跨模型对抗式评审（① 独立取证 → ② 交叉互审 → ③ 终裁定稿），产出可直接执行的《裁决与后续工作部署指派单》。",
   "type": "module",
   "license": "MIT",
@@ -64,13 +64,14 @@
         "@deepseek-ai/dsh-client-ui-layout",
         "@deepseek-ai/dsh-client-ui-conversation",
         "@deepseek-ai/dsh-client-ui-session",
-        "@deepseek-ai/dsh-client-ui-workspace"
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-client-ui-model-selection"
       ]
     }
   },
   "engines": {
     "node": ">=20",
-    "dsh": ">=0.2.0"
+    "dsh": ">=0.2.2-rc.1"
   },
   "peerDependencies": {
     "@deepseek-ai/schemastery": ">=3.19.0-0"

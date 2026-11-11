@@ -337,8 +337,8 @@ function rosterSetupHint(config) {
   const ready = (config.panelists ?? []).filter((expert) => expert && expert.provider && expert.model);
   if (ready.length > 0) return null;
   return (
-    `专家团还没有配置阵容：请打开「设置 → 专家团 → 设置」，至少选择一位取证专家（provider / model）；` +
-    `不知道有哪些路由可先执行 \`/${COMMAND_NAME} routes\`。仓库不预置任何默认模型。`
+    `专家团还没有配置阵容：请打开「设置 → 专家团 → 设置」，用里面那个宿主模型选择器至少选一位取证专家` +
+    `（目录与「新会话窗口」选模型同源）；只想先看有哪些路由也可以执行 \`/${COMMAND_NAME} routes\`。仓库不预置任何默认模型。`
   );
 }
 

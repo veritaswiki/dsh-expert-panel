@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0] - 2026-11-11
+
+First public release.
+
+> Version note: earlier iterations used internal sequence numbers (the sections below). The public series restarts here at 0.1.0; internal numbers are not carried over.
+
+
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
@@ -13,6 +20,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   `consult_expert_panel` 抛同一句提示、system prompt 顶部注入同一警告，且不启动任何专家子会话。
 - 灾备路由不再按具体 provider / model 字面量判断，改为「同 provider 的另一条路由 → 任意另一位取证专家」的路由比较。
 - `maxStepsPerExpert` 在仓库 `cordis.patch.yml` 与 schema 之间统一为 `30`（此前 patch 写 `60`）。
+- 设置页的模型选择改为复用宿主 `modelDirectories` 服务（`@deepseek-ai/dsh-client-ui-model-selection` 提供，
+  与新会话窗口的模型选择同一份目录）：删掉插件自建的 provider/model 手填框、
+  自建候选清单（Host 侧 `availableModels`）与写死的推理档位；推理档位改为只列该模型在目录里声明的档位。
+  `package.json` 的 `dsh.client.inject` 增加该宿主客户端包。
+  **磁盘格式不变**：仍是 `{ provider, model, label?, reasoningEffort? }`，已有配置无需迁移。
+  该选择器需要宿主自带 `@deepseek-ai/dsh-client-ui-model-selection`，故 `engines.dsh` 提到 `>=0.2.2-rc.1`。
 
 ### Added
 - `test/pipeline.test.mjs` 增加 5 个用例：空阵容下的工具 / 命令 / prompt 行为，以及「只配一位专家时该位兼终裁」。
