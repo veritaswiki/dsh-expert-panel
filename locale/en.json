@@ -1,0 +1,10 @@
+{
+  "name": "dsh-expert-panel",
+  "meta": {
+    "title": "Expert Panel · Multi-round Review",
+    "description": "When the main model gets stuck, run one adversarial cross-model review under a hard budget-and-wrap-up contract, and compress the blind spots into a dispatch the main model can execute directly. Fixed pipeline: ① independent evidence (experts in parallel, read-only) → ② cross-review (challenge, overturn, converge) → ③ arbiter verdict (issues the verdict and work dispatch). The wrap-up contract guarantees a conclusion every time: nudge at 60% of the step budget, tool lock at 70% of active work time, one automatic wrap-up round when aborted without prose, and a reasoning fallback flagged as an empty conclusion."
+  },
+  "tab": {
+    "title": "Expert Panel"
+  }
+}
